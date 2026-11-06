@@ -1,6 +1,7 @@
 package es.radioreloj.app;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
@@ -13,79 +14,85 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.InputType;
-import android.view.View;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
+import android.view.ViewGroup;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ListView;
-import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.webkit.WebViewAssetLoader;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/** Pantalla de la app: estado, controles de prueba y edición de la lista de emisoras. */
+/**
+ * Pantalla de la app: una radio de válvulas dibujada en HTML (assets/ui/radio.html).
+ * La página llama a {@link Bridge} para sintonizar, pausar, etc., y recibe el estado cada segundo.
+ * Editar emisoras y los ajustes se hacen con diálogos normales de Android.
+ */
 public class MainActivity extends Activity implements RadioService.Listener {
 
-    private TextView txtServer;
-    private TextView txtBattery;
-    private TextView txtStation;
-    private TextView txtState;
-    private TextView txtTitle;
-    private TextView txtInfo;
-    private Button btnToggle;
-    private String listSignature = "";
+    private static final String PAGE = "https://appassets.androidplatform.net/assets/ui/radio.html";
+    private static final int CABINET_COLOR = 0xFF2C160B;
+
+    private WebView web;
+    private boolean pageReady;
+    private StationStore store;
     private final Handler ticker = new Handler(Looper.getMainLooper());
     private final Runnable tick = new Runnable() {
         @Override
         public void run() {
-            refresh();
+            pushState();
             ticker.postDelayed(this, 1000);
         }
     };
-    private ArrayAdapter<String> adapter;
-    private final List<Station> shown = new ArrayList<>();
-    private StationStore store;
 
+    @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
         store = StationStore.get(this);
 
-        txtServer = findViewById(R.id.txtServer);
-        txtBattery = findViewById(R.id.txtBattery);
-        txtStation = findViewById(R.id.txtStation);
-        txtState = findViewById(R.id.txtState);
-        txtTitle = findViewById(R.id.txtTitle);
-        txtInfo = findViewById(R.id.txtInfo);
-        btnToggle = findViewById(R.id.btnToggle);
+        FrameLayout root = new FrameLayout(this);
+        root.setFitsSystemWindows(true);
+        root.setBackgroundColor(CABINET_COLOR);
+        web = new WebView(this);
+        web.setBackgroundColor(CABINET_COLOR);
+        root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
 
-        findViewById(R.id.btnPrev).setOnClickListener(v -> withService(s -> s.skip(-1)));
-        findViewById(R.id.btnNext).setOnClickListener(v -> withService(s -> s.skip(1)));
-        btnToggle.setOnClickListener(v -> withService(RadioService::toggle));
-        findViewById(R.id.btnVolDown).setOnClickListener(v -> withService(s -> s.changeVolume(false)));
-        findViewById(R.id.btnVolUp).setOnClickListener(v -> withService(s -> s.changeVolume(true)));
-        findViewById(R.id.btnStop).setOnClickListener(v -> withService(RadioService::stopPlayback));
-        findViewById(R.id.btnBack5m).setOnClickListener(v -> withService(s -> s.seekBy(-300)));
-        findViewById(R.id.btnBack30).setOnClickListener(v -> withService(s -> s.seekBy(-30)));
-        findViewById(R.id.btnFwd30).setOnClickListener(v -> withService(s -> s.seekBy(30)));
-        findViewById(R.id.btnLive).setOnClickListener(v -> withService(RadioService::goLive));
-        findViewById(R.id.btnMore).setOnClickListener(v -> showMoreMenu());
-        txtBattery.setOnClickListener(v -> askIgnoreBatteryOptimizations());
+        WebSettings ws = web.getSettings();
+        ws.setJavaScriptEnabled(true);
+        ws.setAllowFileAccess(false);
+        ws.setAllowContentAccess(false);
+        ws.setTextZoom(100); // el dibujo de la radio está pensado a tamaño fijo
 
-        ListView list = findViewById(R.id.listStations);
-        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, new ArrayList<>());
-        list.setAdapter(adapter);
-        list.setOnItemClickListener((parent, view, position, id) -> {
-            Station s = shown.get(position);
-            withService(svc -> svc.play(s));
+        final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .build();
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return loader.shouldInterceptRequest(request.getUrl());
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return true; // la página no navega a ningún otro sitio
+            }
         });
-        list.setOnItemLongClickListener((parent, view, position, id) -> {
-            showStationOptions(shown.get(position));
-            return true;
-        });
+        web.addJavascriptInterface(new Bridge(), "RadioApp");
+        web.loadUrl(PAGE);
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -99,7 +106,7 @@ public class MainActivity extends Activity implements RadioService.Listener {
         super.onResume();
         RadioService.addListener(this);
         startRadioService();
-        ticker.post(tick); // el retraso y lo grabado cambian cada segundo
+        ticker.post(tick);
     }
 
     @Override
@@ -110,15 +117,21 @@ public class MainActivity extends Activity implements RadioService.Listener {
     }
 
     @Override
+    protected void onDestroy() {
+        if (web != null) web.destroy();
+        super.onDestroy();
+    }
+
+    @Override
     public void onRadioChanged() {
-        refresh();
+        pushState();
     }
 
     private void startRadioService() {
         try {
             startForegroundService(new Intent(this, RadioService.class));
         } catch (Exception e) {
-            Toast.makeText(this, "No se pudo iniciar el servicio: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "No se pudo iniciar la radio: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -130,147 +143,150 @@ public class MainActivity extends Activity implements RadioService.Listener {
         RadioService s = RadioService.get();
         if (s == null) {
             startRadioService();
-            Toast.makeText(this, "Iniciando el servicio, prueba otra vez en un segundo", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Encendiendo la radio, prueba otra vez en un segundo", Toast.LENGTH_SHORT).show();
             return;
         }
         action.run(s);
+        pushState();
     }
 
-    // ---------- pintar la pantalla ----------
+    // ---------- estado hacia la página ----------
 
-    private void refresh() {
-        RadioService s = RadioService.get();
-
-        if (s == null) {
-            txtServer.setText("Servicio detenido");
-        } else if (s.isServerRunning()) {
-            txtServer.setText("Conexión con el reloj: lista (127.0.0.1:" + RadioService.PORT + ")");
-        } else {
-            String err = s.getServerError();
-            txtServer.setText(err.isEmpty() ? "Abriendo conexión con el reloj…" : err);
-        }
-
-        PowerManager pm = getSystemService(PowerManager.class);
-        boolean unrestricted = pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
-        txtBattery.setVisibility(unrestricted ? View.GONE : View.VISIBLE);
-
-        Station current = s != null ? s.getCurrent() : store.lastOrFirst();
-        String state = s != null ? s.getState() : "idle";
-        int behind = s != null ? s.behindSeconds() : 0;
-        txtStation.setText(current != null ? current.name : "Sin emisora");
-        switch (state) {
-            case "playing":
-                txtState.setText(behind > 0
-                        ? "En diferido · " + RadioService.formatDuration(behind) + " de retraso"
-                        : "En directo");
-                break;
-            case "paused":
-                txtState.setText("En pausa · " + RadioService.formatDuration(behind) + " de retraso");
-                break;
-            case "buffering":
-                txtState.setText("Conectando con la emisora…");
-                break;
-            case "error":
-                txtState.setText(s.getError());
-                break;
-            default:
-                txtState.setText("Parada");
-        }
-
-        String info = "";
-        if (s != null) {
-            String volume = "volumen " + s.getVolume() + "/" + s.getMaxVolume();
-            if (s.isRecording()) {
-                info = "Grabado: " + RadioService.formatDuration(s.recordedSeconds()) + " (máximo 2 horas) · " + volume;
-            } else if (s.isActive()) {
-                info = "Esta emisora no permite pausar ni retroceder · " + volume;
-            } else {
-                info = volume;
+    private void pushState() {
+        if (!pageReady || web == null) return;
+        try {
+            RadioService s = RadioService.get();
+            JSONObject o = new JSONObject();
+            Station current = s != null ? s.getCurrent() : store.lastOrFirst();
+            o.put("active", s != null && s.isActive());
+            o.put("state", s != null ? s.getState() : "idle");
+            o.put("stationId", current != null ? current.id : "");
+            o.put("stationName", current != null ? current.name : "");
+            o.put("title", s != null ? s.getTitle() : "");
+            o.put("error", s != null ? s.getError() : "");
+            o.put("behind", s != null ? s.behindSeconds() : 0);
+            o.put("recorded", s != null ? s.recordedSeconds() : 0);
+            o.put("canSeek", s != null && s.canSeek());
+            o.put("volume", s != null ? s.getVolume() : 0);
+            o.put("maxVolume", s != null ? s.getMaxVolume() : 15);
+            o.put("serverOk", s != null && s.isServerRunning());
+            PowerManager pm = getSystemService(PowerManager.class);
+            o.put("batteryOk", pm == null || pm.isIgnoringBatteryOptimizations(getPackageName()));
+            JSONArray arr = new JSONArray();
+            for (Station st : store.all()) {
+                JSONObject j = new JSONObject();
+                j.put("id", st.id);
+                j.put("name", st.name);
+                arr.put(j);
             }
+            o.put("stations", arr);
+            web.evaluateJavascript("window.radioUpdate && window.radioUpdate(" + JSONObject.quote(o.toString()) + ")", null);
+        } catch (Exception ignored) {
         }
-        txtInfo.setText(info);
-
-        String title = s != null ? s.getTitle() : "";
-        txtTitle.setText(title);
-        txtTitle.setVisibility(title.isEmpty() ? View.GONE : View.VISIBLE);
-        boolean active = s != null && s.isActive();
-        btnToggle.setText(!active ? "Sonar" : "paused".equals(state) ? "Seguir" : "Pausa");
-        boolean canSeek = s != null && s.canSeek();
-        findViewById(R.id.btnBack5m).setEnabled(canSeek);
-        findViewById(R.id.btnBack30).setEnabled(canSeek);
-        findViewById(R.id.btnFwd30).setEnabled(canSeek && behind > 0);
-        findViewById(R.id.btnLive).setEnabled(canSeek && (behind > 0 || "paused".equals(state)));
-
-        // La lista solo se repinta si ha cambiado algo
-        List<Station> all = store.all();
-        StringBuilder sig = new StringBuilder(active && current != null ? current.id : "-");
-        for (Station st : all) sig.append('|').append(st.id).append('=').append(st.name);
-        if (sig.toString().equals(listSignature)) return;
-        listSignature = sig.toString();
-        shown.clear();
-        shown.addAll(all);
-        List<String> names = new ArrayList<>();
-        for (Station st : shown) {
-            boolean isCurrent = active && current != null && st.id.equals(current.id);
-            names.add((isCurrent ? "▶  " : "") + st.name);
-        }
-        adapter.clear();
-        adapter.addAll(names);
-        adapter.notifyDataSetChanged();
     }
 
-    // ---------- menús y diálogos ----------
+    /** Lo que la página puede pedir. Se llama desde otro hilo: todo pasa al hilo principal. */
+    private final class Bridge {
+        @JavascriptInterface
+        public void ready() {
+            runOnUiThread(() -> {
+                pageReady = true;
+                pushState();
+            });
+        }
 
-    private void showMoreMenu() {
-        String[] items = {
-                "Añadir emisora",
-                "Restaurar la lista de fábrica",
-                "Quitar la optimización de batería",
-                "Detener el servicio y salir"
-        };
+        @JavascriptInterface
+        public void play(String id) {
+            runOnUiThread(() -> {
+                Station st = store.byId(id);
+                if (st != null) withService(s -> s.play(st));
+            });
+        }
+
+        @JavascriptInterface
+        public void toggle() {
+            runOnUiThread(() -> withService(RadioService::toggle));
+        }
+
+        @JavascriptInterface
+        public void stop() {
+            runOnUiThread(() -> withService(RadioService::stopPlayback));
+        }
+
+        @JavascriptInterface
+        public void seek(int seconds) {
+            runOnUiThread(() -> withService(s -> s.seekBy(seconds)));
+        }
+
+        @JavascriptInterface
+        public void live() {
+            runOnUiThread(() -> withService(RadioService::goLive));
+        }
+
+        @JavascriptInterface
+        public void setVolume(int level) {
+            runOnUiThread(() -> withService(s -> s.setVolume(level)));
+        }
+
+        @JavascriptInterface
+        public void openStations() {
+            runOnUiThread(MainActivity.this::showStationsMenu);
+        }
+
+        @JavascriptInterface
+        public void openSettings() {
+            runOnUiThread(MainActivity.this::showSettingsMenu);
+        }
+
+        @JavascriptInterface
+        public void fixBattery() {
+            runOnUiThread(MainActivity.this::askIgnoreBatteryOptimizations);
+        }
+    }
+
+    // ---------- emisoras ----------
+
+    private void showStationsMenu() {
+        List<Station> all = store.all();
+        List<String> items = new ArrayList<>();
+        for (Station s : all) items.add(s.name);
+        items.add("+ Añadir emisora");
         new AlertDialog.Builder(this)
-                .setItems(items, (d, which) -> {
-                    switch (which) {
-                        case 0:
-                            showEditDialog(null);
-                            break;
-                        case 1:
-                            confirmReset();
-                            break;
-                        case 2:
-                            askIgnoreBatteryOptimizations();
-                            break;
-                        default:
-                            stopService(new Intent(this, RadioService.class));
-                            finishAndRemoveTask();
-                    }
+                .setTitle("Emisoras (toca una para editarla)")
+                .setItems(items.toArray(new String[0]), (d, which) -> {
+                    if (which == all.size()) showEditDialog(null);
+                    else showStationOptions(all.get(which));
                 })
+                .setNegativeButton("Cerrar", null)
                 .show();
     }
 
     private void showStationOptions(Station station) {
-        String[] items = {"Editar", "Subir", "Bajar", "Eliminar"};
+        String[] items = {"Escuchar", "Editar", "Subir en el dial", "Bajar en el dial", "Eliminar"};
         new AlertDialog.Builder(this)
                 .setTitle(station.name)
                 .setItems(items, (d, which) -> {
                     switch (which) {
                         case 0:
-                            showEditDialog(station);
+                            withService(s -> s.play(station));
                             break;
                         case 1:
-                            store.move(station.id, -1);
-                            refresh();
+                            showEditDialog(station);
                             break;
                         case 2:
+                            store.move(station.id, -1);
+                            pushState();
+                            break;
+                        case 3:
                             store.move(station.id, 1);
-                            refresh();
+                            pushState();
                             break;
                         default:
                             new AlertDialog.Builder(this)
-                                    .setMessage("¿Eliminar " + station.name + " de la lista?")
+                                    .setMessage("¿Quitar " + station.name + " del dial?")
                                     .setPositiveButton("Eliminar", (d2, w2) -> {
                                         store.remove(station.id);
-                                        refresh();
+                                        pushState();
                                     })
                                     .setNegativeButton("Cancelar", null)
                                     .show();
@@ -286,12 +302,12 @@ public class MainActivity extends Activity implements RadioService.Listener {
         box.setPadding(pad, pad / 2, pad, 0);
 
         EditText name = new EditText(this);
-        name.setHint("Nombre (como se verá en el reloj)");
+        name.setHint("Nombre (como se verá en el dial)");
         name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         box.addView(name);
 
         EditText urls = new EditText(this);
-        urls.setHint("URL del streaming (una por línea; se prueban en orden)");
+        urls.setHint("Dirección del streaming (una por línea; se prueban en orden)");
         urls.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_VARIATION_URI);
         urls.setMinLines(3);
@@ -308,17 +324,69 @@ public class MainActivity extends Activity implements RadioService.Listener {
                 .setPositiveButton("Guardar", (d, w) -> {
                     String n = name.getText().toString().trim();
                     List<String> list = new ArrayList<>();
-                    for (String line : urls.getText().toString().split("\\s+")) {
-                        String u = line.trim();
+                    for (String part : urls.getText().toString().split("\\s+")) {
+                        String u = part.trim();
                         if (u.startsWith("http://") || u.startsWith("https://")) list.add(u);
                     }
                     if (n.isEmpty() || list.isEmpty()) {
-                        Toast.makeText(this, "Hace falta un nombre y al menos una URL http(s)", Toast.LENGTH_LONG).show();
+                        Toast.makeText(this, "Hace falta un nombre y al menos una dirección http(s)", Toast.LENGTH_LONG).show();
                         return;
                     }
                     if (station == null) store.add(n, list);
                     else store.update(station.id, n, list);
-                    refresh();
+                    pushState();
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    // ---------- ajustes ----------
+
+    private void showSettingsMenu() {
+        RadioService s = RadioService.get();
+        boolean keep = store.keepForWatch();
+        String watch = s != null && s.isServerRunning()
+                ? "Conexión con el reloj: lista"
+                : "Conexión con el reloj: no disponible ahora";
+        String[] items = {
+                keep ? "Al cerrar la app: seguir esperando al reloj (cambiar)"
+                        : "Al cerrar la app: apagarlo todo (cambiar)",
+                "Quitar la optimización de batería",
+                "Restaurar la lista de emisoras de fábrica",
+                watch
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("Ajustes")
+                .setItems(items, (d, which) -> {
+                    switch (which) {
+                        case 0:
+                            chooseCloseBehaviour();
+                            break;
+                        case 1:
+                            askIgnoreBatteryOptimizations();
+                            break;
+                        case 2:
+                            confirmReset();
+                            break;
+                        default:
+                            break;
+                    }
+                })
+                .setNegativeButton("Cerrar", null)
+                .show();
+    }
+
+    private void chooseCloseBehaviour() {
+        String[] options = {
+                "Apagarlo todo: deja de sonar y desaparece la notificación. El reloj no podrá encender la radio hasta que abras la app.",
+                "Parar la radio pero seguir esperando al reloj: deja de sonar, pero queda una notificación y el reloj puede volver a encenderla."
+        };
+        int checked = store.keepForWatch() ? 1 : 0;
+        new AlertDialog.Builder(this)
+                .setTitle("Al cerrar la app")
+                .setSingleChoiceItems(options, checked, (d, which) -> {
+                    store.setKeepForWatch(which == 1);
+                    d.dismiss();
                 })
                 .setNegativeButton("Cancelar", null)
                 .show();
@@ -329,7 +397,7 @@ public class MainActivity extends Activity implements RadioService.Listener {
                 .setMessage("Se perderán las emisoras que hayas añadido o editado. ¿Seguir?")
                 .setPositiveButton("Restaurar", (d, w) -> {
                     store.resetToDefaults();
-                    refresh();
+                    pushState();
                 })
                 .setNegativeButton("Cancelar", null)
                 .show();

@@ -56,7 +56,7 @@ import es.radioreloj.app.timeshift.TimeshiftSession;
 public class RadioService extends Service {
 
     public static final int PORT = 8765;
-    public static final String APP_VERSION = "1.1";
+    public static final String APP_VERSION = "1.2";
     public static final double TIMESHIFT_SECONDS = 2 * 60 * 60;
 
     public static final String ACTION_TOGGLE = "es.radioreloj.app.action.TOGGLE";
@@ -174,6 +174,17 @@ public class RadioService extends Service {
         instance = null;
         for (Listener l : new ArrayList<>(listeners)) l.onRadioChanged();
         super.onDestroy();
+    }
+
+    /** El usuario ha cerrado la app (la ha quitado de "recientes"): se apaga la radio. */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        stopPlayback();
+        if (!store.keepForWatch()) {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopSelf();
+        }
+        super.onTaskRemoved(rootIntent);
     }
 
     @Override
@@ -496,6 +507,12 @@ public class RadioService extends Service {
         if (!canSeek()) return;
         player.seekToDefaultPosition();
         player.play();
+        notifyChanged();
+    }
+
+    public void setVolume(int level) {
+        int max = getMaxVolume();
+        audio.setStreamVolume(AudioManager.STREAM_MUSIC, Math.max(0, Math.min(max, level)), 0);
         notifyChanged();
     }
 

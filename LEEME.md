@@ -41,9 +41,9 @@ Hay dos formas de obtener el APK. Las dos producen el mismo archivo, firmado con
 5. Abre **Radio Reloj** en el móvil:
    - Acepta las **notificaciones**.
    - Si aparece el aviso amarillo de batería, tócalo y elige *Permitir* / *Sin restricciones*.
-   - Toca una emisora: debe sonar en el móvil. Arriba tiene que poner *"Conexión con el reloj: lista"*.
+   - Toca una emisora en el dial: debe sonar en el móvil. En *Ajustes* debe poner *"Conexión con el reloj: lista"*.
 
-La app deja una notificación fija ("Parada · esperando órdenes del reloj"): es lo que la mantiene viva para que el reloj pueda encenderla en cualquier momento. Desde esa notificación también puedes parar o cambiar de emisora.
+Mientras la app está abierta o en segundo plano deja una notificación fija: es lo que permite que el reloj la encienda en cualquier momento. Al cerrar la app del todo (quitarla de "recientes") la radio se apaga y la notificación desaparece; en *Ajustes* se puede cambiar.
 
 ## 2. App del reloj (Zeus CLI)
 
@@ -64,6 +64,17 @@ La app deja una notificación fija ("Parada · esperando órdenes del reloj"): e
 6. Ahí usa **Escanear** y apunta al QR. La app se instala en el reloj como **Radio Reloj**.
 
 ## 3. Uso
+
+**En el móvil** la app es una radio de válvulas de los años 50:
+
+- **Dial:** desliza el cristal a izquierda o derecha (o gira el mando **Sintonía**) y la aguja se para en una emisora; si la radio está encendida, la sintoniza al soltar. Tocar un nombre del dial la enciende con esa emisora.
+- **Mando Volumen:** gíralo como uno de verdad; los puntos de alrededor marcan el volumen del móvil.
+- **Teclas de marfil:** Apagar, 5 min y 30 s atrás, Sonar/Pausa/Seguir, 30 s adelante y Directo. La tecla del estado actual se queda hundida (Apagar cuando está apagada, Seguir en pausa, Directo cuando suena en directo).
+- **Ojo mágico** (el círculo verde): se abre mientras sintoniza y se cierra cuando suena bien. La lucecita naranja entre los mandos indica que está encendida.
+- **Emisoras** y **Ajustes** (botones de abajo): editar la lista, la batería y qué pasa al cerrar la app.
+- **Al cerrar la app** (quitarla de "recientes") se apaga la radio y desaparece la notificación. En *Ajustes* puedes cambiarlo para que se pare la radio pero siga esperando órdenes del reloj.
+
+**En el reloj:**
 
 - En el reloj abre **Radio Reloj**: verás la lista de emisoras (la toma del móvil y la guarda para que aparezca al instante la próxima vez).
 - Toca una emisora → pasa a la pantalla de reproducción:
@@ -92,4 +103,5 @@ La app deja una notificación fija ("Parada · esperando órdenes del reloj"): e
 - **Reproductor:** Media3 ExoPlayer. Si una URL falla prueba la siguiente de la emisora.
 - **Grabación para pausa y retroceso:** la emisora se graba en trozos (de 3 s en emisoras MP3/AAC; en las HLS se copian sus propios trozos) en la memoria interna de la app y se reproduce desde ahí como una lista HLS local. Se guardan como máximo 2 horas (unos 60 MB por hora a 128 kbps) y se borran al cambiar de emisora o apagar. Si se corta internet, la grabación se reconecta sola. Una emisora en un formato que no se puede grabar (por ejemplo Ogg, o HLS cifrado) suena en directo, sin pausa ni retroceso.
 - **Órdenes del reloj:** la app Android abre un pequeño servidor HTTP solo en `127.0.0.1:8765` (no accesible desde la red Wi-Fi ni desde internet). Rutas: `/api/ping`, `/api/stations`, `/api/status`, `/api/play?id=…`, `/api/pause`, `/api/resume`, `/api/toggle`, `/api/stop`, `/api/seek?by=-30` (segundos), `/api/live`, `/api/next`, `/api/prev`, `/api/volume?dir=up|down`. Todas devuelven JSON. La grabación se sirve en `/ts/…` para el propio reproductor.
+- **Pantalla del móvil:** dibujada en HTML/CSS (`android-app/app/src/main/assets/ui/radio.html`) dentro de un WebView, con las fuentes libres Josefin Sans y Yesteryear (licencia OFL, incluidas). Se puede abrir ese archivo en un navegador para verla con datos de prueba.
 - **Versiones:** Android 8.0 o superior (minSdk 26, target 36), Android Gradle Plugin 8.13, Gradle 8.14.3, Java 17, Media3 1.8.0. Reloj: Zepp OS con API_LEVEL 4.0 o superior, pantalla cuadrada (390 px de diseño), librería ZML.

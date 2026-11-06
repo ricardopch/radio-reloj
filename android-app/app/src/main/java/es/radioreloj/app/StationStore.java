@@ -19,6 +19,7 @@ public final class StationStore {
     private static final String PREFS = "radio_reloj";
     private static final String KEY_STATIONS = "stations_json";
     private static final String KEY_LAST = "last_station_id";
+    private static final String KEY_KEEP_FOR_WATCH = "keep_for_watch";
 
     private static StationStore instance;
 
@@ -63,6 +64,15 @@ public final class StationStore {
 
     public synchronized void setLast(String id) {
         prefs.edit().putString(KEY_LAST, id).apply();
+    }
+
+    /** true: al cerrar la app se para la radio pero se sigue esperando al reloj. */
+    public synchronized boolean keepForWatch() {
+        return prefs.getBoolean(KEY_KEEP_FOR_WATCH, false);
+    }
+
+    public synchronized void setKeepForWatch(boolean keep) {
+        prefs.edit().putBoolean(KEY_KEEP_FOR_WATCH, keep).apply();
     }
 
     public synchronized void add(String name, List<String> urls) {
