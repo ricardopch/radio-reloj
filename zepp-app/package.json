@@ -1,0 +1,14 @@
+{
+  "name": "radio-reloj",
+  "version": "1.0.0",
+  "description": "Mini app Zepp OS: elige una radio en el reloj y suena en el movil",
+  "main": "app.js",
+  "private": true,
+  "license": "MIT",
+  "devDependencies": {
+    "@zeppos/device-types": "^4.0.0"
+  },
+  "dependencies": {
+    "@zeppos/zml": "^0.0.38"
+  }
+}

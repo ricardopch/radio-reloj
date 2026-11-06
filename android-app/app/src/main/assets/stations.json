@@ -1,0 +1,177 @@
+{
+  "source": "TDTChannels (github.com/LaQuay/TDTChannels), noviembre 2026",
+  "stations": [
+    {
+      "id": "ser",
+      "name": "Cadena SER",
+      "urls": [
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/CADENASER.mp3",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/CADENASER_ALT1.mp3",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/CADENASER_ALT2.mp3"
+      ]
+    },
+    {
+      "id": "cope",
+      "name": "COPE",
+      "urls": [
+        "https://flucast09-h-cloud.flumotion.com/cope/net1.mp3",
+        "https://flucast31-h-cloud.flumotion.com/cope/net2.mp3",
+        "https://flucast09-h-cloud.flumotion.com/cope/net1.aac"
+      ]
+    },
+    {
+      "id": "ondacero",
+      "name": "Onda Cero",
+      "urls": [
+        "https://radio-atres-live.ondacero.es/api/livestream-redirect/OCAAC.aac",
+        "https://atres-live.ondacero.es/live/ondaceroeventos1/master.m3u8"
+      ]
+    },
+    {
+      "id": "rne",
+      "name": "Radio Nacional",
+      "urls": [
+        "https://rtvelivestream.rtve.es/rtvesec/rne/rne_r1_main.m3u8"
+      ]
+    },
+    {
+      "id": "rne-madrid",
+      "name": "RNE Madrid",
+      "urls": [
+        "https://dispatcher.rndfnk.com/crtve/rne1/mad/mp3/high"
+      ]
+    },
+    {
+      "id": "esradio",
+      "name": "esRadio",
+      "urls": [
+        "https://libertaddigital-radio-live1.flumotion.com/libertaddigital/ld-live1-high.mp3",
+        "https://libertaddigital-radio-live1.flumotion.com/libertaddigital/ld-live1-high.aac"
+      ]
+    },
+    {
+      "id": "marca",
+      "name": "Radio Marca",
+      "urls": [
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/RADIOMARCA_NACIONAL.mp3",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/RADIOMARCA_NACIONALAAC.aac"
+      ]
+    },
+    {
+      "id": "r5",
+      "name": "Radio 5",
+      "urls": [
+        "https://rtvelivestream.rtve.es/rtvesec/rne/rne_r5_madrid_main.m3u8"
+      ]
+    },
+    {
+      "id": "ondamadrid",
+      "name": "Onda Madrid",
+      "urls": [
+        "https://live.telemadrid.cross-media.es/6389769037112/eu-central-1/6416060453001/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJob3N0IjoiajI5YjgyLmVncmVzcy5haGc3NmwiLCJhY2NvdW50X2lkIjoiNjQxNjA2MDQ1MzAwMSIsImVobiI6ImxpdmUudGVsZW1hZHJpZC5jcm9zcy1tZWRpYS5lcyIsImlzcyI6ImJsaXZlLXBsYXliYWNrLXNvdXJjZS1hcGkiLCJzdWIiOiJwYXRobWFwdG9rZW4iLCJhdWQiOlsiNjQxNjA2MDQ1MzAwMSJdLCJqdGkiOiI2Mzg5NzY5MDM3MTEyIn0.mSEPQICNIKBAWWzolDpDk6cERGe7k93rkqQunSc6cG4/playlist-hls.m3u8"
+      ]
+    },
+    {
+      "id": "ib3",
+      "name": "IB3 Ràdio",
+      "urls": [
+        "https://icecast.ib3radio.com/ib3radio.mp3"
+      ]
+    },
+    {
+      "id": "los40",
+      "name": "LOS40",
+      "urls": [
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/LOS40.mp3",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/LOS40AAC.aac"
+      ]
+    },
+    {
+      "id": "los40classic",
+      "name": "LOS40 Classic",
+      "urls": [
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/LOS40_CLASSIC.mp3",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/LOS40_CLASSICAAC.aac"
+      ]
+    },
+    {
+      "id": "cadena100",
+      "name": "Cadena 100",
+      "urls": [
+        "https://cadena100-cope.flumotion.com/playlist.m3u8"
+      ]
+    },
+    {
+      "id": "dial",
+      "name": "Cadena Dial",
+      "urls": [
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/CADENADIAL.mp3",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/CADENADIALAAC.aac"
+      ]
+    },
+    {
+      "id": "rockfm",
+      "name": "Rock FM",
+      "urls": [
+        "https://rockfm-cope.flumotion.com/playlist.m3u8"
+      ]
+    },
+    {
+      "id": "europafm",
+      "name": "Europa FM",
+      "urls": [
+        "https://radio-atres-live.ondacero.es/api/livestream-redirect/EFMAAC.aac"
+      ]
+    },
+    {
+      "id": "kissfm",
+      "name": "Kiss FM",
+      "urls": [
+        "https://kissfm.kissfmradio.cires21.com/kissfm.mp3"
+      ]
+    },
+    {
+      "id": "megastar",
+      "name": "MegaStar FM",
+      "urls": [
+        "https://megastar-cope.flumotion.com/playlist.m3u8"
+      ]
+    },
+    {
+      "id": "melodia",
+      "name": "Melodía FM",
+      "urls": [
+        "https://radio-atres-live.ondacero.es/api/livestream-redirect/MELODIA_FMAAC.aac"
+      ]
+    },
+    {
+      "id": "hitfm",
+      "name": "Hit FM",
+      "urls": [
+        "https://kissfm.kissfmradio.cires21.com/hitfm.mp3"
+      ]
+    },
+    {
+      "id": "radiole",
+      "name": "Radiolé",
+      "urls": [
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/RADIOLE.mp3",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/RADIOLEAAC.aac"
+      ]
+    },
+    {
+      "id": "radio3",
+      "name": "Radio 3",
+      "urls": [
+        "https://rtvelivestream.rtve.es/rtvesec/rne/rne_r3_main.m3u8"
+      ]
+    },
+    {
+      "id": "clasica",
+      "name": "Radio Clásica",
+      "urls": [
+        "https://rtvelivestream.rtve.es/rtvesec/rne/rne_r2_main.m3u8"
+      ]
+    }
+  ]
+}
