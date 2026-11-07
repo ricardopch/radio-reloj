@@ -56,7 +56,7 @@ import es.radioreloj.app.timeshift.TimeshiftSession;
 public class RadioService extends Service {
 
     public static final int PORT = 8765;
-    public static final String APP_VERSION = "1.2";
+    public static final String APP_VERSION = "1.3";
     public static final double TIMESHIFT_SECONDS = 2 * 60 * 60;
 
     public static final String ACTION_TOGGLE = "es.radioreloj.app.action.TOGGLE";

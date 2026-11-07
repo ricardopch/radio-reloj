@@ -20,6 +20,11 @@ public final class StationStore {
     private static final String KEY_STATIONS = "stations_json";
     private static final String KEY_LAST = "last_station_id";
     private static final String KEY_KEEP_FOR_WATCH = "keep_for_watch";
+    private static final String KEY_SKIN = "skin";
+
+    /** Aspectos de la pantalla principal (cada uno es una página en assets/ui). */
+    public static final String SKIN_HIFI = "hifi";
+    public static final String SKIN_VALVULAS = "valvulas";
 
     private static StationStore instance;
 
@@ -73,6 +78,16 @@ public final class StationStore {
 
     public synchronized void setKeepForWatch(boolean keep) {
         prefs.edit().putBoolean(KEY_KEEP_FOR_WATCH, keep).apply();
+    }
+
+    /** Aspecto elegido: {@link #SKIN_HIFI} (por defecto) o {@link #SKIN_VALVULAS}. */
+    public synchronized String skin() {
+        String skin = prefs.getString(KEY_SKIN, SKIN_HIFI);
+        return SKIN_VALVULAS.equals(skin) ? SKIN_VALVULAS : SKIN_HIFI;
+    }
+
+    public synchronized void setSkin(String skin) {
+        prefs.edit().putString(KEY_SKIN, SKIN_VALVULAS.equals(skin) ? SKIN_VALVULAS : SKIN_HIFI).apply();
     }
 
     public synchronized void add(String name, List<String> urls) {

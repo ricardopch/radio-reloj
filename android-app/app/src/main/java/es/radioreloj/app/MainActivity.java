@@ -14,7 +14,9 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.InputType;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -35,15 +37,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Pantalla de la app: una radio de válvulas dibujada en HTML (assets/ui/radio.html).
+ * Pantalla de la app: un aparato antiguo dibujado en HTML. Hay dos aspectos a elegir en Ajustes:
+ * un equipo Hi-Fi de aluminio de los 70 (assets/ui/hifi.html) y una radio de válvulas de los 50
+ * (assets/ui/valvulas.html); los dos comparten la lógica de assets/ui/radio.js.
  * La página llama a {@link Bridge} para sintonizar, pausar, etc., y recibe el estado cada segundo.
  * Editar emisoras y los ajustes se hacen con diálogos normales de Android.
  */
 public class MainActivity extends Activity implements RadioService.Listener {
 
-    private static final String PAGE = "https://appassets.androidplatform.net/assets/ui/radio.html";
-    private static final int CABINET_COLOR = 0xFF2C160B;
+    private static final String PAGES = "https://appassets.androidplatform.net/assets/ui/";
 
+    private FrameLayout root;
     private WebView web;
     private boolean pageReady;
     private StationStore store;
@@ -62,11 +66,11 @@ public class MainActivity extends Activity implements RadioService.Listener {
         super.onCreate(savedInstanceState);
         store = StationStore.get(this);
 
-        FrameLayout root = new FrameLayout(this);
-        root.setFitsSystemWindows(true);
-        root.setBackgroundColor(CABINET_COLOR);
+        root = new FrameLayout(this);
+        // Desde Android 15 la app ocupa toda la pantalla, también detrás de la barra de estado y de
+        // los botones de navegación: se deja ese hueco libre para que la radio quepa entera a la vista.
+        root.setOnApplyWindowInsetsListener(MainActivity::fitInsideSystemBars);
         web = new WebView(this);
-        web.setBackgroundColor(CABINET_COLOR);
         root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
@@ -92,7 +96,7 @@ public class MainActivity extends Activity implements RadioService.Listener {
             }
         });
         web.addJavascriptInterface(new Bridge(), "RadioApp");
-        web.loadUrl(PAGE);
+        loadSkin();
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -120,6 +124,33 @@ public class MainActivity extends Activity implements RadioService.Listener {
     protected void onDestroy() {
         if (web != null) web.destroy();
         super.onDestroy();
+    }
+
+    /** Carga el aspecto elegido en Ajustes (y lo vuelve a cargar si se cambia). */
+    private void loadSkin() {
+        boolean hifi = StationStore.SKIN_HIFI.equals(store.skin());
+        int frame = hifi ? 0xFF2A1A0F : 0xFF2C160B;
+        root.setBackgroundColor(frame);
+        web.setBackgroundColor(frame);
+        pageReady = false;
+        web.loadUrl(PAGES + (hifi ? "hifi.html" : "valvulas.html"));
+    }
+
+    private static WindowInsets fitInsideSystemBars(View v, WindowInsets insets) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            android.graphics.Insets in = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            v.setPadding(in.left, in.top, in.right, in.bottom);
+            return WindowInsets.CONSUMED;
+        }
+        v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
+                insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+        return insets.consumeSystemWindowInsets();
+    }
+
+    private boolean batteryUnrestricted() {
+        PowerManager pm = getSystemService(PowerManager.class);
+        return pm == null || pm.isIgnoringBatteryOptimizations(getPackageName());
     }
 
     @Override
@@ -170,8 +201,6 @@ public class MainActivity extends Activity implements RadioService.Listener {
             o.put("volume", s != null ? s.getVolume() : 0);
             o.put("maxVolume", s != null ? s.getMaxVolume() : 15);
             o.put("serverOk", s != null && s.isServerRunning());
-            PowerManager pm = getSystemService(PowerManager.class);
-            o.put("batteryOk", pm == null || pm.isIgnoringBatteryOptimizations(getPackageName()));
             JSONArray arr = new JSONArray();
             for (Station st : store.all()) {
                 JSONObject j = new JSONObject();
@@ -199,7 +228,18 @@ public class MainActivity extends Activity implements RadioService.Listener {
         public void play(String id) {
             runOnUiThread(() -> {
                 Station st = store.byId(id);
-                if (st != null) withService(s -> s.play(st));
+                if (st == null) return;
+                withService(s -> {
+                    Station cur = s.getCurrent();
+                    boolean same = s.isActive() && cur != null && cur.id.equals(st.id);
+                    if (!same) {
+                        s.play(st); // otra emisora: se sintoniza (y empieza a grabar desde cero)
+                    } else if ("paused".equals(s.getState())) {
+                        s.resume(); // la misma emisora en pausa: sigue donde estaba, sin perder lo grabado
+                    } else if ("error".equals(s.getState()) || "idle".equals(s.getState())) {
+                        s.play(st);
+                    }
+                });
             });
         }
 
@@ -238,10 +278,6 @@ public class MainActivity extends Activity implements RadioService.Listener {
             runOnUiThread(MainActivity.this::showSettingsMenu);
         }
 
-        @JavascriptInterface
-        public void fixBattery() {
-            runOnUiThread(MainActivity.this::askIgnoreBatteryOptimizations);
-        }
     }
 
     // ---------- emisoras ----------
@@ -344,28 +380,38 @@ public class MainActivity extends Activity implements RadioService.Listener {
 
     private void showSettingsMenu() {
         RadioService s = RadioService.get();
-        boolean keep = store.keepForWatch();
-        String watch = s != null && s.isServerRunning()
-                ? "Conexión con el reloj: lista"
-                : "Conexión con el reloj: no disponible ahora";
+        boolean hifi = StationStore.SKIN_HIFI.equals(store.skin());
+        boolean battery = batteryUnrestricted();
         String[] items = {
-                keep ? "Al cerrar la app: seguir esperando al reloj (cambiar)"
+                "Aspecto: " + (hifi ? "equipo Hi-Fi de los 70" : "radio de válvulas de los 50") + " (cambiar)",
+                battery ? "Batería: sin restricciones. El reloj puede encender la radio aunque el móvil esté bloqueado."
+                        : "⚠ Batería: con restricciones. Toca aquí y elige «Permitir» para que el reloj pueda "
+                        + "encender la radio con el móvil bloqueado.",
+                store.keepForWatch() ? "Al cerrar la app: seguir esperando al reloj (cambiar)"
                         : "Al cerrar la app: apagarlo todo (cambiar)",
-                "Quitar la optimización de batería",
                 "Restaurar la lista de emisoras de fábrica",
-                watch
+                s != null && s.isServerRunning() ? "Conexión con el reloj: lista"
+                        : "Conexión con el reloj: no disponible ahora"
         };
         new AlertDialog.Builder(this)
                 .setTitle("Ajustes")
                 .setItems(items, (d, which) -> {
                     switch (which) {
                         case 0:
-                            chooseCloseBehaviour();
+                            chooseSkin();
                             break;
                         case 1:
-                            askIgnoreBatteryOptimizations();
+                            if (batteryUnrestricted()) {
+                                Toast.makeText(this, "No hace falta hacer nada: la batería ya está sin restricciones",
+                                        Toast.LENGTH_LONG).show();
+                            } else {
+                                askIgnoreBatteryOptimizations();
+                            }
                             break;
                         case 2:
+                            chooseCloseBehaviour();
+                            break;
+                        case 3:
                             confirmReset();
                             break;
                         default:
@@ -373,6 +419,26 @@ public class MainActivity extends Activity implements RadioService.Listener {
                     }
                 })
                 .setNegativeButton("Cerrar", null)
+                .show();
+    }
+
+    private void chooseSkin() {
+        String[] options = {
+                "Equipo Hi-Fi de los 70: aluminio cepillado, agujas y teclas grandes",
+                "Radio de válvulas de los 50: madera, dial iluminado y ojo mágico"
+        };
+        String[] skins = {StationStore.SKIN_HIFI, StationStore.SKIN_VALVULAS};
+        int checked = StationStore.SKIN_HIFI.equals(store.skin()) ? 0 : 1;
+        new AlertDialog.Builder(this)
+                .setTitle("Aspecto de la radio")
+                .setSingleChoiceItems(options, checked, (d, which) -> {
+                    d.dismiss();
+                    if (!skins[which].equals(store.skin())) {
+                        store.setSkin(skins[which]);
+                        loadSkin();
+                    }
+                })
+                .setNegativeButton("Cancelar", null)
                 .show();
     }
 

@@ -10,8 +10,8 @@ android {
         applicationId = 'es.radioreloj.app'
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = '1.2'
+        versionCode = 4
+        versionName = '1.3'
     }
 
     // Firma fija incluida en el proyecto: así cada APK nuevo se instala encima del anterior
